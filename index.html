@@ -5,33 +5,43 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Movie Sync · with global chat</title>
   <style>
-    /* (keep your existing styles, add these few) */
-    #chat { background: #0f172a; border-radius: 1.5rem; padding: 1rem; height: 250px; overflow-y: auto; border: 1px solid #334155; margin-top: 1rem; display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.95rem; }
+    * { box-sizing: border-box; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+    body { background: #0f172a; color: #e2e8f0; display: flex; justify-content: center; padding: 2rem 1rem; margin: 0; }
+    .card { background: #1e293b; border-radius: 2rem; padding: 2rem; max-width: 1000px; width: 100%; }
+    h2 { margin-top: 0; }
+    .hidden { display: none !important; }
+    input, button { background: #0f172a; border: 1px solid #334155; color: white; padding: 0.75rem 1rem; border-radius: 3rem; font-size: 1rem; }
+    button { background: #3b82f6; border: none; font-weight: 600; cursor: pointer; box-shadow: 0 4px 0 #1e3a8a; }
+    button.secondary { background: #334155; box-shadow: 0 4px 0 #1e293b; }
+    .room-list { background: #0f172a; border-radius: 2rem; padding: 1.5rem; margin: 1.5rem 0; border: 1px solid #334155; max-height: 200px; overflow-y: auto; }
+    .room-list button { background: #2d3b4f; width: 100%; text-align: left; border-radius: 2rem; margin: 0.25rem 0; }
+    video { width: 100%; border-radius: 1.5rem; background: black; aspect-ratio: 16/9; }
+    #chat { background: #0f172a; border-radius: 1.5rem; padding: 1rem; height: 250px; overflow-y: auto; border: 1px solid #334155; margin-top: 1rem; font-size: 0.95rem; }
     #chat div { border-bottom: 1px solid #334155; padding: 0.25rem 0; }
     .chat-input { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
-    .chat-input input { flex: 1; background: #0f172a; border: 1px solid #334155; color: white; padding: 0.75rem; border-radius: 2rem; }
-    .chat-input button { background: #3b82f6; border: none; padding: 0.75rem 1.5rem; border-radius: 2rem; color: white; cursor: pointer; }
+    .chat-input input { flex: 1; }
     .message-meta { color: #94a3b8; font-size: 0.75rem; margin-left: 0.5rem; }
+    .label { color: #94a3b8; margin-bottom: 0.25rem; }
   </style>
 </head>
 <body>
-<div class="card" id="app">
-  <!-- Lobby (same as before) -->
+<div class="card">
+  <!-- LOBBY -->
   <div id="lobby">
-    <h2>🎬 Movie Sync · with global chat</h2>
-    <div class="grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-      <div><div class="label">your name</div><input type="text" id="user" placeholder="e.g. Alex" value="Streamer"></div>
-      <div><div class="label">room name</div><input type="text" id="room" placeholder="e.g. marvel" value="marvel"></div>
+    <h2>🎬 Movie Sync · global chat</h2>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+      <div><div class="label">your name</div><input type="text" id="user" value="Streamer"></div>
+      <div><div class="label">room name</div><input type="text" id="room" value="marvel"></div>
     </div>
     <div style="display: flex; gap: 1rem; margin: 1rem 0;">
-      <input type="text" id="url" placeholder="Video URL (direct mp4, etc.)" value="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" style="flex: 3;">
+      <input type="text" id="url" placeholder="Direct video URL (MP4, etc.)" value="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" style="flex: 3;">
       <button onclick="createRoom()">✨ CREATE</button>
     </div>
     <div class="room-list" id="list">loading rooms...</div>
     <p style="color: #94a3b8;">👇 click any room to join</p>
   </div>
 
-  <!-- Player View with global chat -->
+  <!-- PLAYER VIEW -->
   <div id="view" class="hidden">
     <div style="display: flex; justify-content: space-between; align-items: center;">
       <h2 id="title">Room: —</h2>
@@ -39,7 +49,7 @@
     </div>
     <video id="player" controls></video>
 
-    <!-- GLOBAL CHAT SECTION -->
+    <!-- GLOBAL CHAT -->
     <div style="margin-top: 1.5rem;">
       <div style="display: flex; gap: 0.5rem; align-items: center;">
         <span style="background: #334155; padding: 0.2rem 1rem; border-radius: 2rem;">💬 room chat</span>
@@ -55,24 +65,24 @@
 </div>
 
 <script>
-  // ----- configuration (your worker URL) -----
-  const API = "https://movie-sync-api.deagleonlyprofesion.workers.dev/";
+  // ---------- CONFIGURATION (no trailing slash!) ----------
+  const API = "https://movie-sync-api.deagleonlyprofesion.workers.dev"; // <-- removed trailing slash
 
-  // ----- state -----
+  // ---------- STATE ----------
   let me = "";
   let currentRoom = "";
   let isHost = false;
   let syncInterval = null;
   let chatPollInterval = null;
-  let lastChatTimestamp = "1970-01-01 00:00:00"; // for polling new messages
+  let lastChatTimestamp = "1970-01-01 00:00:00";
 
-  // ----- helper: get player -----
   function getPlayer() { return document.getElementById('player'); }
 
-  // ----- load rooms (existing) -----
+  // ---------- LOAD ROOMS ----------
   async function loadRooms() {
     try {
-      const r = await fetch(`${API}/list`);
+      const r = await fetch(`${API}/list`);   // correct single slash
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const d = await r.json();
       const listDiv = document.getElementById('list');
       if (!d || d.length === 0) {
@@ -89,7 +99,7 @@
   setInterval(loadRooms, 5000);
   loadRooms();
 
-  // ----- create room (host) -----
+  // ---------- CREATE ROOM ----------
   async function createRoom() {
     const user = document.getElementById('user').value.trim();
     const roomName = document.getElementById('room').value.trim();
@@ -97,7 +107,6 @@
 
     if (!user || !roomName || !videoUrl) return alert("Fill all fields");
 
-    // Dropbox fix
     if (videoUrl.includes('dropbox.com') && videoUrl.includes('dl=0')) {
       videoUrl = videoUrl.replace('dl=0', 'raw=1');
     }
@@ -106,7 +115,6 @@
     currentRoom = roomName;
     isHost = true;
 
-    // register room on server
     try {
       await fetch(`${API}/sync`, {
         method: 'POST',
@@ -119,7 +127,7 @@
     startPlayer(roomName, videoUrl);
   }
 
-  // ----- join room (guest) -----
+  // ---------- JOIN ROOM ----------
   function joinRoom(roomName, videoUrl) {
     me = "Guest_" + Math.floor(Math.random() * 900 + 100);
     currentRoom = roomName;
@@ -127,7 +135,7 @@
     startPlayer(roomName, videoUrl);
   }
 
-  // ----- start video & sync (existing logic) + start chat polling -----
+  // ---------- START PLAYER & SYNC ----------
   function startPlayer(roomName, videoUrl) {
     document.getElementById('lobby').classList.add('hidden');
     document.getElementById('view').classList.remove('hidden');
@@ -139,11 +147,11 @@
       player.load();
     }
 
-    // clear old intervals
+    // Clear old intervals
     if (syncInterval) clearInterval(syncInterval);
     if (chatPollInterval) clearInterval(chatPollInterval);
 
-    // ----- video sync (every 2s) -----
+    // Video sync (every 2s)
     syncInterval = setInterval(async () => {
       const p = getPlayer();
       if (!p) return;
@@ -167,8 +175,8 @@
       }
     }, 2000);
 
-    // ----- chat polling (every 1s) -----
-    lastChatTimestamp = "1970-01-01 00:00:00"; // reset for new room
+    // Chat polling (every 1s)
+    lastChatTimestamp = "1970-01-01 00:00:00";
     chatPollInterval = setInterval(async () => {
       if (!currentRoom) return;
       try {
@@ -176,10 +184,8 @@
         const res = await fetch(url);
         const messages = await res.json();
         if (messages && messages.length > 0) {
-          // update last timestamp to the newest message
           const newest = messages[messages.length - 1];
           lastChatTimestamp = newest.created_at;
-          // display each new message
           const chatDiv = document.getElementById('chat');
           for (let msg of messages) {
             const time = new Date(msg.created_at).toLocaleTimeString();
@@ -193,7 +199,7 @@
     }, 1000);
   }
 
-  // ----- send chat message -----
+  // ---------- SEND CHAT MESSAGE ----------
   async function sendMessage() {
     const input = document.getElementById('msg');
     const text = input.value.trim();
@@ -205,13 +211,13 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ room: currentRoom, sender: me, message: text })
       });
-      input.value = ''; // clear input (message will appear via poll)
+      input.value = '';
     } catch (e) {
       alert('Failed to send message');
     }
   }
 
-  // ----- leave room -----
+  // ---------- LEAVE ROOM ----------
   function leaveRoom() {
     if (syncInterval) clearInterval(syncInterval);
     if (chatPollInterval) clearInterval(chatPollInterval);
@@ -219,14 +225,14 @@
     if (player) { player.pause(); player.src = ''; }
     document.getElementById('lobby').classList.remove('hidden');
     document.getElementById('view').classList.add('hidden');
-    document.getElementById('chat').innerHTML = ''; // clear chat
+    document.getElementById('chat').innerHTML = '';
     me = '';
     currentRoom = '';
     isHost = false;
     loadRooms();
   }
 
-  // expose functions globally
+  // Expose functions globally
   window.createRoom = createRoom;
   window.joinRoom = joinRoom;
   window.leaveRoom = leaveRoom;

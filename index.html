@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Movie Sync · Base64 encoded links</title>
+  <!-- 🔒 Referrer Lockdown: hides the source from external sites -->
+  <meta name="referrer" content="no-referrer">
+  <title>Movie Sync · stealth mode</title>
   <style>
     * { box-sizing: border-box; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
     body { background: #0f172a; color: #e2e8f0; display: flex; justify-content: center; padding: 2rem 1rem; margin: 0; }
@@ -25,18 +27,27 @@
   </style>
 </head>
 <body>
+  <!-- 🤖 Bot Cloaking: redirect crawlers to a kitten search -->
+  <script>
+    (function() {
+      const ua = navigator.userAgent.toLowerCase();
+      const botPattern = /bot|crawl|spider|scrape|headless|googlebot|bingbot|slurp|duckduckbot|baiduspider|yandexbot|facebookexternalhit|facebot|twitterbot|whatsapp|telegram/i;
+      if (botPattern.test(ua)) {
+        window.location.href = 'https://www.google.com/search?q=cute+kittens';
+      }
+    })();
+  </script>
+
 <div class="card">
   <!-- LOBBY -->
   <div id="lobby">
-    <h2>🎬 Movie Sync · Base64 encoded links</h2>
+    <h2>🎬 Movie Sync · rooms auto-delete</h2>
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
       <div><div class="label">your name</div><input type="text" id="user" value="Streamer"></div>
       <div><div class="label">room name</div><input type="text" id="room" value="marvel"></div>
     </div>
     <div style="display: flex; gap: 1rem; margin: 1rem 0;">
-      <!-- The default value is a Base64 encoded version of the Big Buck Bunny URL.
-           Decodes to: https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4 -->
-      <input type="text" id="url" placeholder="Video URL (plain or Base64)" value="aHR0cHM6Ly9jb21tb25kYXRhc3RvcmFnZS5nb29nbGVhcGlzLmNvbS9ndHYtdmlkZW9zLWJ1Y2tldC9zYW1wbGUvQmlnQnVja0J1bm55Lm1wNA==" style="flex: 3;">
+      <input type="text" id="url" placeholder="Direct video URL (MP4, etc.)" value="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" style="flex: 3;">
       <button onclick="createRoom()">✨ CREATE</button>
     </div>
     <div class="room-list" id="list">loading rooms...</div>
@@ -109,22 +120,9 @@
 
     if (!user || !roomName || !videoUrl) return alert("Fill all fields");
 
-    // If the user entered a plain URL (not Base64), we need to encode it.
-    // But we also want to apply Dropbox conversion before encoding.
-    // We'll try to detect if it's already Base64: if it contains only valid Base64 chars and length multiple of 4?
-    // Simpler: assume it's plain and we always encode. If the user pastes a Base64 string, it will be double-encoded.
-    // To avoid that, we can check if the string looks like a URL (starts with http). If it does, we treat as plain.
-    // Otherwise, we assume it's already Base64 and leave as is.
-    let urlToStore;
-    if (videoUrl.startsWith('http://') || videoUrl.startsWith('https://')) {
-      // Plain URL: apply Dropbox conversion then encode
-      if (videoUrl.includes('dropbox.com') && videoUrl.includes('dl=0')) {
-        videoUrl = videoUrl.replace('dl=0', 'raw=1');
-      }
-      urlToStore = btoa(videoUrl); // encode to Base64
-    } else {
-      // Assume already Base64 – use as is
-      urlToStore = videoUrl;
+    // Dropbox conversion
+    if (videoUrl.includes('dropbox.com') && videoUrl.includes('dl=0')) {
+      videoUrl = videoUrl.replace('dl=0', 'raw=1');
     }
 
     me = user;
@@ -135,34 +133,25 @@
       await fetch(`${API}/sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ r: roomName, h: user, u: urlToStore, t: 0, p: 0 })
+        body: JSON.stringify({ r: roomName, h: user, u: videoUrl, t: 0, p: 0 })
       });
     } catch (e) {
       console.warn("Room registered locally only (server unreachable)");
     }
 
-    startPlayer(roomName, urlToStore);
+    startPlayer(roomName, videoUrl);
   }
 
   // ---------- JOIN ROOM ----------
-  function joinRoom(roomName, encodedUrl) {
+  function joinRoom(roomName, videoUrl) {
     me = "Guest_" + Math.floor(Math.random() * 900 + 100);
     currentRoom = roomName;
     isHost = false;
-    startPlayer(roomName, encodedUrl);
+    startPlayer(roomName, videoUrl);
   }
 
   // ---------- START PLAYER & SYNC ----------
-  function startPlayer(roomName, encodedUrl) {
-    // Decode the Base64 URL to get the actual video source
-    let videoUrl;
-    try {
-      videoUrl = atob(encodedUrl);
-    } catch (e) {
-      console.error("Failed to decode Base64 URL, using as is", encodedUrl);
-      videoUrl = encodedUrl; // fallback
-    }
-
+  function startPlayer(roomName, videoUrl) {
     document.getElementById('lobby').classList.add('hidden');
     document.getElementById('view').classList.remove('hidden');
     document.getElementById('title').innerText = '🎥 ' + roomName;

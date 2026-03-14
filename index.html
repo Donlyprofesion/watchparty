@@ -2,32 +2,52 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <!-- 🔒 Referrer Lockdown: hides the source from external sites -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+  <!-- 🔒 Referrer Lockdown -->
   <meta name="referrer" content="no-referrer">
-  <title>Movie Sync · stealth mode</title>
+  <title>Movie Sync · mobile friendly</title>
   <style>
     * { box-sizing: border-box; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
-    body { background: #0f172a; color: #e2e8f0; display: flex; justify-content: center; padding: 2rem 1rem; margin: 0; }
-    .card { background: #1e293b; border-radius: 2rem; padding: 2rem; max-width: 1000px; width: 100%; }
-    h2 { margin-top: 0; }
+    body { background: #0f172a; color: #e2e8f0; display: flex; justify-content: center; padding: 1rem; margin: 0; min-height: 100vh; }
+    .card { background: #1e293b; border-radius: 2rem; padding: 2rem; max-width: 1000px; width: 100%; box-shadow: 0 20px 30px -10px #00000055; }
+    h2 { margin-top: 0; font-size: 1.5rem; font-weight: 500; letter-spacing: -0.02em; }
     .hidden { display: none !important; }
-    input, button { background: #0f172a; border: 1px solid #334155; color: white; padding: 0.75rem 1rem; border-radius: 3rem; font-size: 1rem; }
-    button { background: #3b82f6; border: none; font-weight: 600; cursor: pointer; box-shadow: 0 4px 0 #1e3a8a; }
+    input, button { background: #0f172a; border: 1px solid #334155; color: white; padding: 0.75rem 1rem; border-radius: 3rem; font-size: 1rem; outline: none; transition: 0.15s; width: 100%; }
+    input:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px #3b82f620; }
+    button { background: #3b82f6; border: none; font-weight: 600; cursor: pointer; box-shadow: 0 4px 0 #1e3a8a; transition: 0.1s ease; -webkit-tap-highlight-color: transparent; }
+    button:active { transform: translateY(4px); box-shadow: none; }
     button.secondary { background: #334155; box-shadow: 0 4px 0 #1e293b; }
     .room-list { background: #0f172a; border-radius: 2rem; padding: 1.5rem; margin: 1.5rem 0; border: 1px solid #334155; max-height: 200px; overflow-y: auto; }
-    .room-list button { background: #2d3b4f; width: 100%; text-align: left; border-radius: 2rem; margin: 0.25rem 0; }
-    video { width: 100%; border-radius: 1.5rem; background: black; aspect-ratio: 16/9; }
+    .room-list button { background: #2d3b4f; width: 100%; text-align: left; border-radius: 2rem; margin: 0.25rem 0; box-shadow: none; border: 1px solid #475569; }
+    .flex-row { display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; }
+    .flex-row > * { flex: 1 1 auto; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    video { width: 100%; border-radius: 1.5rem; background: black; aspect-ratio: 16/9; border: 2px solid #334155; }
     #chat { background: #0f172a; border-radius: 1.5rem; padding: 1rem; height: 250px; overflow-y: auto; border: 1px solid #334155; margin-top: 1rem; font-size: 0.95rem; }
     #chat div { border-bottom: 1px solid #334155; padding: 0.25rem 0; }
     .chat-input { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
     .chat-input input { flex: 1; }
     .message-meta { color: #94a3b8; font-size: 0.75rem; margin-left: 0.5rem; }
-    .label { color: #94a3b8; margin-bottom: 0.25rem; }
+    .label { color: #94a3b8; margin-bottom: 0.25rem; font-size: 0.9rem; }
+    .toast { background: #b91c1c; color: white; padding: 0.5rem 1rem; border-radius: 2rem; margin-bottom: 1rem; text-align: center; }
+
+    /* 📱 Mobile adjustments */
+    @media (max-width: 600px) {
+      body { padding: 0.5rem; }
+      .card { padding: 1.25rem; border-radius: 1.5rem; }
+      h2 { font-size: 1.3rem; }
+      .grid-2 { grid-template-columns: 1fr; gap: 0.75rem; }
+      .flex-row { flex-direction: column; gap: 0.75rem; }
+      .flex-row button { width: 100%; }
+      input, button { padding: 0.7rem 1rem; font-size: 16px; } /* prevent zoom on iOS */
+      .room-list { padding: 1rem; }
+      .room-list button { padding: 0.7rem 1rem; }
+      #chat { height: 200px; font-size: 0.9rem; }
+    }
   </style>
 </head>
 <body>
-  <!-- 🤖 Bot Cloaking: redirect crawlers to a kitten search -->
+  <!-- 🤖 Bot Cloaking -->
   <script>
     (function() {
       const ua = navigator.userAgent.toLowerCase();
@@ -41,37 +61,38 @@
 <div class="card">
   <!-- LOBBY -->
   <div id="lobby">
-    <h2>🎬 Movie Sync · rooms auto-delete</h2>
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-      <div><div class="label">your name</div><input type="text" id="user" value=""></div>
-      <div><div class="label">room name</div><input type="text" id="room" value=""></div>
+    <h2>🎬 Movie Sync · mobile ready</h2>
+    <div class="grid-2">
+      <div><div class="label">your name</div><input type="text" id="user" value="Streamer"></div>
+      <div><div class="label">room name</div><input type="text" id="room" value="marvel"></div>
     </div>
-    <div style="display: flex; gap: 1rem; margin: 1rem 0;">
-      <input type="text" id="url" placeholder="Direct video URL (MP4, etc.)" value="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" style="flex: 3;">
+    <div class="flex-row" style="margin: 1rem 0;">
+      <input type="text" id="url" placeholder="Direct video URL (MP4, etc.)" value="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4">
       <button onclick="createRoom()">✨ CREATE</button>
     </div>
     <div class="room-list" id="list">loading rooms...</div>
-    <p style="color: #94a3b8;">👇 click any room to join</p>
+    <p style="color: #94a3b8; font-size: 0.9rem;">👇 click any room to join</p>
   </div>
 
   <!-- PLAYER VIEW -->
   <div id="view" class="hidden">
-    <div style="display: flex; justify-content: space-between; align-items: center;">
-      <h2 id="title">Room: —</h2>
-      <button class="secondary" onclick="leaveRoom()">← Leave room</button>
+    <div id="kick-message" class="toast hidden">Host has left the room. Returning to lobby...</div>
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem;">
+      <h2 id="title" style="margin:0;">Room: —</h2>
+      <button class="secondary" onclick="leaveRoom()" style="width: auto; padding: 0.5rem 1.2rem;">← Leave</button>
     </div>
     <video id="player" controls></video>
 
     <!-- GLOBAL CHAT -->
     <div style="margin-top: 1.5rem;">
-      <div style="display: flex; gap: 0.5rem; align-items: center;">
+      <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
         <span style="background: #334155; padding: 0.2rem 1rem; border-radius: 2rem;">💬 room chat</span>
-        <span style="color: #94a3b8;">messages are synced</span>
+        <span style="color: #94a3b8; font-size:0.9rem;">messages are synced</span>
       </div>
       <div id="chat"></div>
       <div class="chat-input">
         <input type="text" id="msg" placeholder="type a message..." onkeypress="if(event.key==='Enter') sendMessage()">
-        <button onclick="sendMessage()">send</button>
+        <button onclick="sendMessage()" style="width: auto; padding: 0.7rem 1.2rem;">send</button>
       </div>
     </div>
   </div>
@@ -155,6 +176,7 @@
     document.getElementById('lobby').classList.add('hidden');
     document.getElementById('view').classList.remove('hidden');
     document.getElementById('title').innerText = '🎥 ' + roomName;
+    document.getElementById('kick-message').classList.add('hidden');
 
     const player = getPlayer();
     if (player) {
@@ -166,11 +188,13 @@
     if (syncInterval) clearInterval(syncInterval);
     if (chatPollInterval) clearInterval(chatPollInterval);
 
-    // Video sync (every 2s) – keeps room alive
+    // Video sync (every 2s)
     syncInterval = setInterval(async () => {
       const p = getPlayer();
       if (!p) return;
+
       if (isHost) {
+        // Host: push state
         try {
           await fetch(`${API}/sync`, {
             method: 'POST',
@@ -179,15 +203,26 @@
           });
         } catch (e) {}
       } else {
+        // Guest: pull state, kick if room missing
         try {
           const res = await fetch(`${API}/get?r=${roomName}`);
+          if (res.status === 404) {
+            showKickMessageAndLeave();
+            return;
+          }
           const data = await res.json();
-          if (data && typeof data.time === 'number') {
+          if (!data) {
+            showKickMessageAndLeave();
+            return;
+          }
+          if (typeof data.time === 'number') {
             if (Math.abs(p.currentTime - data.time) > 2.5) p.currentTime = data.time;
             if (data.playing == 1 && p.paused) p.play().catch(() => {});
             else if (data.playing == 0 && !p.paused) p.pause();
           }
-        } catch (e) {}
+        } catch (e) {
+          console.warn('Guest sync error', e);
+        }
       }
     }, 2000);
 
@@ -213,6 +248,14 @@
         console.warn('chat poll error', e);
       }
     }, 1000);
+  }
+
+  function showKickMessageAndLeave() {
+    const msgDiv = document.getElementById('kick-message');
+    msgDiv.classList.remove('hidden');
+    setTimeout(() => {
+      leaveRoom();
+    }, 1500);
   }
 
   // ---------- SEND CHAT MESSAGE ----------
@@ -260,6 +303,7 @@
     document.getElementById('lobby').classList.remove('hidden');
     document.getElementById('view').classList.add('hidden');
     document.getElementById('chat').innerHTML = '';
+    document.getElementById('kick-message').classList.add('hidden');
 
     // Reset state
     me = '';

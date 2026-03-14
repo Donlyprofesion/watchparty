@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Movie Sync · with global chat</title>
+  <title>Movie Sync · Base64 encoded links</title>
   <style>
     * { box-sizing: border-box; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
     body { background: #0f172a; color: #e2e8f0; display: flex; justify-content: center; padding: 2rem 1rem; margin: 0; }
@@ -28,13 +28,15 @@
 <div class="card">
   <!-- LOBBY -->
   <div id="lobby">
-    <h2>🎬 Movie Sync · global chat</h2>
+    <h2>🎬 Movie Sync · Base64 encoded links</h2>
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
       <div><div class="label">your name</div><input type="text" id="user" value="Streamer"></div>
       <div><div class="label">room name</div><input type="text" id="room" value="marvel"></div>
     </div>
     <div style="display: flex; gap: 1rem; margin: 1rem 0;">
-      <input type="text" id="url" placeholder="Direct video URL (MP4, etc.)" value="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" style="flex: 3;">
+      <!-- The default value is a Base64 encoded version of the Big Buck Bunny URL.
+           Decodes to: https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4 -->
+      <input type="text" id="url" placeholder="Video URL (plain or Base64)" value="aHR0cHM6Ly9jb21tb25kYXRhc3RvcmFnZS5nb29nbGVhcGlzLmNvbS9ndHYtdmlkZW9zLWJ1Y2tldC9zYW1wbGUvQmlnQnVja0J1bm55Lm1wNA==" style="flex: 3;">
       <button onclick="createRoom()">✨ CREATE</button>
     </div>
     <div class="room-list" id="list">loading rooms...</div>
@@ -65,8 +67,8 @@
 </div>
 
 <script>
-  // ---------- CONFIGURATION (no trailing slash!) ----------
-  const API = "https://movie-sync-api.deagleonlyprofesion.workers.dev"; // <-- removed trailing slash
+  // ---------- CONFIGURATION ----------
+  const API = "https://movie-sync-api.deagleonlyprofesion.workers.dev"; // no trailing slash
 
   // ---------- STATE ----------
   let me = "";
@@ -78,10 +80,10 @@
 
   function getPlayer() { return document.getElementById('player'); }
 
-  // ---------- LOAD ROOMS ----------
+  // ---------- LOAD ROOMS (15-second expiration) ----------
   async function loadRooms() {
     try {
-      const r = await fetch(`${API}/list`);   // correct single slash
+      const r = await fetch(`${API}/list`);
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const d = await r.json();
       const listDiv = document.getElementById('list');
@@ -107,8 +109,22 @@
 
     if (!user || !roomName || !videoUrl) return alert("Fill all fields");
 
-    if (videoUrl.includes('dropbox.com') && videoUrl.includes('dl=0')) {
-      videoUrl = videoUrl.replace('dl=0', 'raw=1');
+    // If the user entered a plain URL (not Base64), we need to encode it.
+    // But we also want to apply Dropbox conversion before encoding.
+    // We'll try to detect if it's already Base64: if it contains only valid Base64 chars and length multiple of 4?
+    // Simpler: assume it's plain and we always encode. If the user pastes a Base64 string, it will be double-encoded.
+    // To avoid that, we can check if the string looks like a URL (starts with http). If it does, we treat as plain.
+    // Otherwise, we assume it's already Base64 and leave as is.
+    let urlToStore;
+    if (videoUrl.startsWith('http://') || videoUrl.startsWith('https://')) {
+      // Plain URL: apply Dropbox conversion then encode
+      if (videoUrl.includes('dropbox.com') && videoUrl.includes('dl=0')) {
+        videoUrl = videoUrl.replace('dl=0', 'raw=1');
+      }
+      urlToStore = btoa(videoUrl); // encode to Base64
+    } else {
+      // Assume already Base64 – use as is
+      urlToStore = videoUrl;
     }
 
     me = user;
@@ -118,25 +134,35 @@
     try {
       await fetch(`${API}/sync`, {
         method: 'POST',
-        body: JSON.stringify({ r: roomName, h: user, u: videoUrl, t: 0, p: 0 })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ r: roomName, h: user, u: urlToStore, t: 0, p: 0 })
       });
     } catch (e) {
       console.warn("Room registered locally only (server unreachable)");
     }
 
-    startPlayer(roomName, videoUrl);
+    startPlayer(roomName, urlToStore);
   }
 
   // ---------- JOIN ROOM ----------
-  function joinRoom(roomName, videoUrl) {
+  function joinRoom(roomName, encodedUrl) {
     me = "Guest_" + Math.floor(Math.random() * 900 + 100);
     currentRoom = roomName;
     isHost = false;
-    startPlayer(roomName, videoUrl);
+    startPlayer(roomName, encodedUrl);
   }
 
   // ---------- START PLAYER & SYNC ----------
-  function startPlayer(roomName, videoUrl) {
+  function startPlayer(roomName, encodedUrl) {
+    // Decode the Base64 URL to get the actual video source
+    let videoUrl;
+    try {
+      videoUrl = atob(encodedUrl);
+    } catch (e) {
+      console.error("Failed to decode Base64 URL, using as is", encodedUrl);
+      videoUrl = encodedUrl; // fallback
+    }
+
     document.getElementById('lobby').classList.add('hidden');
     document.getElementById('view').classList.remove('hidden');
     document.getElementById('title').innerText = '🎥 ' + roomName;
@@ -151,7 +177,7 @@
     if (syncInterval) clearInterval(syncInterval);
     if (chatPollInterval) clearInterval(chatPollInterval);
 
-    // Video sync (every 2s)
+    // Video sync (every 2s) – keeps room alive
     syncInterval = setInterval(async () => {
       const p = getPlayer();
       if (!p) return;
@@ -159,6 +185,7 @@
         try {
           await fetch(`${API}/sync`, {
             method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ r: roomName, h: me, t: p.currentTime || 0, p: p.paused ? 0 : 1 })
           });
         } catch (e) {}
@@ -217,18 +244,40 @@
     }
   }
 
-  // ---------- LEAVE ROOM ----------
-  function leaveRoom() {
+  // ---------- LEAVE ROOM (with immediate deletion if host) ----------
+  async function leaveRoom() {
+    // If host, delete the room from server
+    if (isHost && currentRoom) {
+      try {
+        await fetch(`${API}/leave`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ room: currentRoom, host: me })
+        });
+      } catch (e) {
+        console.warn('Failed to delete room on leave', e);
+      }
+    }
+
+    // Stop intervals
     if (syncInterval) clearInterval(syncInterval);
     if (chatPollInterval) clearInterval(chatPollInterval);
+
+    // Stop video
     const player = getPlayer();
     if (player) { player.pause(); player.src = ''; }
+
+    // Switch to lobby
     document.getElementById('lobby').classList.remove('hidden');
     document.getElementById('view').classList.add('hidden');
     document.getElementById('chat').innerHTML = '';
+
+    // Reset state
     me = '';
     currentRoom = '';
     isHost = false;
+
+    // Refresh room list
     loadRooms();
   }
 

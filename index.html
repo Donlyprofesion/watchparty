@@ -4,9 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
   <meta name="referrer" content="no-referrer">
-  <title>Movie Sync · stable room list</title>
+  <title>Movie Sync · guest name change</title>
   <style>
-    /* (same mobile-friendly styles as before) */
     * { box-sizing: border-box; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
     body { background: #0f172a; color: #e2e8f0; display: flex; justify-content: center; padding: 1rem; margin: 0; min-height: 100vh; }
     .card { background: #1e293b; border-radius: 2rem; padding: 2rem; max-width: 1000px; width: 100%; box-shadow: 0 20px 30px -10px #00000055; }
@@ -30,6 +29,9 @@
     .message-meta { color: #94a3b8; font-size: 0.75rem; margin-left: 0.5rem; }
     .label { color: #94a3b8; margin-bottom: 0.25rem; font-size: 0.9rem; }
     .toast { background: #b91c1c; color: white; padding: 0.5rem 1rem; border-radius: 2rem; margin-bottom: 1rem; text-align: center; }
+    .name-edit { display: flex; gap: 0.5rem; align-items: center; margin: 0.5rem 0; }
+    .name-edit input { flex: 1; }
+    .name-edit button { width: auto; padding: 0.5rem 1rem; }
 
     @media (max-width: 600px) {
       body { padding: 0.5rem; }
@@ -44,7 +46,7 @@
   </style>
 </head>
 <body>
-  <!-- Bot cloaking (same) -->
+  <!-- Bot cloaking -->
   <script>
     (function() {
       const ua = navigator.userAgent.toLowerCase();
@@ -58,13 +60,13 @@
 <div class="card">
   <!-- LOBBY -->
   <div id="lobby">
-    <h2>🎬 Movie Sync · stable rooms</h2>
+    <h2>🎬 Movie Sync · change your name anytime</h2>
     <div class="grid-2">
-      <div><div class="label">your name</div><input type="text" id="user" placeholder="Streamer" value=""></div>
-      <div><div class="label">room name</div><input type="text" id="room" placeholder="marvel" value=""></div>
+      <div><div class="label">your name</div><input type="text" id="user" value="" placeholder="Your Name"></div>
+      <div><div class="label">room name</div><input type="text" id="room" value="" placeholder="Room Name"></div>
     </div>
     <div class="flex-row" style="margin: 1rem 0;">
-      <input type="text" id="url" placeholder="Direct video URL (MP4, etc.)" value="">
+      <input type="text" id="url" placeholder="Direct video URL (MP4, etc.)" value="" placeholder="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4">
       <button onclick="createRoom()">✨ CREATE</button>
     </div>
     <div class="room-list" id="list">loading rooms...</div>
@@ -78,14 +80,21 @@
       <h2 id="title" style="margin:0;">Room: —</h2>
       <button class="secondary" onclick="leaveRoom()" style="width: auto; padding: 0.5rem 1.2rem;">← Leave</button>
     </div>
-    <video id="player" controls></video>
+    <video id="player"></video>
 
-    <!-- GLOBAL CHAT -->
+    <!-- GLOBAL CHAT + NAME EDIT -->
     <div style="margin-top: 1.5rem;">
       <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
         <span style="background: #334155; padding: 0.2rem 1rem; border-radius: 2rem;">💬 room chat</span>
         <span style="color: #94a3b8; font-size:0.9rem;">messages are synced</span>
       </div>
+
+      <!-- Guest name editor (visible to all, but host may also change – we allow anyone to change their own name) -->
+      <div class="name-edit">
+        <input type="text" id="guest-name" placeholder="Your name" value="">
+        <button onclick="updateGuestName()" style="box-shadow: none;">change name</button>
+      </div>
+
       <div id="chat"></div>
       <div class="chat-input">
         <input type="text" id="msg" placeholder="type a message..." onkeypress="if(event.key==='Enter') sendMessage()">
@@ -107,6 +116,18 @@
 
   function getPlayer() { return document.getElementById('player'); }
 
+  // Block guest keyboard controls
+  function blockGuestKeys(e) {
+    if (isHost) return;
+    const tag = e.target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target.isContentEditable) return;
+    const key = e.key;
+    if (key === ' ' || key === 'Spacebar' || key === 'Space' || key.startsWith('Arrow')) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }
+
   async function loadRooms() {
     try {
       const r = await fetch(`${API}/list`);
@@ -117,8 +138,9 @@
         listDiv.innerHTML = '<div style="color: #94a3b8;">✨ no active rooms</div>';
         return;
       }
+      // IMPORTANT FIX: use x.url || '' to avoid null
       listDiv.innerHTML = d.map(x => 
-        `<button onclick="joinRoom('${x.name}','${x.url}')">🎬 Join ${x.name}  ·  host: ${x.host}</button>`
+        `<button onclick="joinRoom('${x.name}','${x.url || ''}')">🎬 Join ${x.name}  ·  host: ${x.host}</button>`
       ).join('');
     } catch (e) {
       document.getElementById('list').innerHTML = '<div style="color: #f87171;">⚠️ cannot reach server</div>';
@@ -128,11 +150,11 @@
   loadRooms();
 
   async function createRoom() {
-    const user = document.getElementById('user').value.trim();
-    const roomName = document.getElementById('room').value.trim();
+    const user = document.getElementById('user').value.trim() || "Streamer";
+    const roomName = document.getElementById('room').value.trim() || "room";
     let videoUrl = document.getElementById('url').value.trim();
 
-    if (!user || !roomName || !videoUrl) return alert("Fill all fields");
+    if (!videoUrl) return alert("Please enter a video URL");
 
     if (videoUrl.includes('dropbox.com') && videoUrl.includes('dl=0')) {
       videoUrl = videoUrl.replace('dl=0', 'raw=1');
@@ -156,7 +178,9 @@
   }
 
   function joinRoom(roomName, videoUrl) {
-    me = "Guest_" + Math.floor(Math.random() * 900 + 100);
+    // Use the lobby name input if provided, otherwise generate a guest name
+    const lobbyName = document.getElementById('user').value.trim();
+    me = lobbyName ? lobbyName : "Guest_" + Math.floor(Math.random() * 900 + 100);
     currentRoom = roomName;
     isHost = false;
     startPlayer(roomName, videoUrl);
@@ -168,18 +192,29 @@
     document.getElementById('title').innerText = '🎥 ' + roomName;
     document.getElementById('kick-message').classList.add('hidden');
 
+    // Set the guest name input to current name
+    document.getElementById('guest-name').value = me;
+
     const player = getPlayer();
     if (player) {
       player.src = videoUrl;
       player.load();
+      player.controls = isHost;
+      player.style.pointerEvents = isHost ? 'auto' : 'none';
+    }
+
+    // Keyboard blocker
+    if (isHost) {
+      window.removeEventListener('keydown', blockGuestKeys);
+    } else {
+      window.addEventListener('keydown', blockGuestKeys);
     }
 
     if (syncInterval) clearInterval(syncInterval);
     if (chatPollInterval) clearInterval(chatPollInterval);
 
-    // --- IMMEDIATE FIRST SYNC (for host) ---
+    // Immediate first sync for host
     if (isHost) {
-      // Send a sync right now, don't wait 2 seconds
       (async () => {
         try {
           await fetch(`${API}/sync`, {
@@ -191,7 +226,6 @@
       })();
     }
 
-    // Regular sync every 2 seconds
     syncInterval = setInterval(async () => {
       const p = getPlayer();
       if (!p) return;
@@ -227,7 +261,7 @@
       }
     }, 2000);
 
-    // Chat polling (unchanged)
+    // Chat polling
     lastChatTimestamp = "1970-01-01 00:00:00";
     chatPollInterval = setInterval(async () => {
       if (!currentRoom) return;
@@ -249,6 +283,15 @@
         console.warn('chat poll error', e);
       }
     }, 1000);
+  }
+
+  // Guest name update
+  function updateGuestName() {
+    const newName = document.getElementById('guest-name').value.trim();
+    if (newName && newName !== me) {
+      me = newName;
+      // Optionally show a small confirmation (could be a toast)
+    }
   }
 
   function showKickMessageAndLeave() {
@@ -291,6 +334,7 @@
 
     if (syncInterval) clearInterval(syncInterval);
     if (chatPollInterval) clearInterval(chatPollInterval);
+    window.removeEventListener('keydown', blockGuestKeys);
 
     const player = getPlayer();
     if (player) { player.pause(); player.src = ''; }
@@ -311,6 +355,7 @@
   window.joinRoom = joinRoom;
   window.leaveRoom = leaveRoom;
   window.sendMessage = sendMessage;
+  window.updateGuestName = updateGuestName;
 </script>
 </body>
 </html>

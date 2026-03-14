@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
   <meta name="referrer" content="no-referrer">
-  <title>Movie Sync · guest name change</title>
+  <title>Movie Sync · production</title>
   <style>
     * { box-sizing: border-box; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
     body { background: #0f172a; color: #e2e8f0; display: flex; justify-content: center; padding: 1rem; margin: 0; min-height: 100vh; }
@@ -60,13 +60,13 @@
 <div class="card">
   <!-- LOBBY -->
   <div id="lobby">
-    <h2>🎬 Movie Sync · change your name anytime</h2>
+    <h2>🎬 Movie Sync · production ready</h2>
     <div class="grid-2">
-      <div><div class="label">your name</div><input type="text" id="user" value="" placeholder="Your Name"></div>
-      <div><div class="label">room name</div><input type="text" id="room" value="" placeholder="Room Name"></div>
+      <div><div class="label">your name</div><input type="text" id="user" value="Streamer"></div>
+      <div><div class="label">room name</div><input type="text" id="room" value="marvel"></div>
     </div>
     <div class="flex-row" style="margin: 1rem 0;">
-      <input type="text" id="url" placeholder="Direct video URL (MP4, etc.)" value="" placeholder="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4">
+      <input type="text" id="url" placeholder="Direct video URL (MP4, etc.)" value="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4">
       <button onclick="createRoom()">✨ CREATE</button>
     </div>
     <div class="room-list" id="list">loading rooms...</div>
@@ -82,14 +82,14 @@
     </div>
     <video id="player"></video>
 
-    <!-- GLOBAL CHAT + NAME EDIT -->
+    <!-- CHAT + NAME EDIT -->
     <div style="margin-top: 1.5rem;">
       <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
         <span style="background: #334155; padding: 0.2rem 1rem; border-radius: 2rem;">💬 room chat</span>
         <span style="color: #94a3b8; font-size:0.9rem;">messages are synced</span>
       </div>
 
-      <!-- Guest name editor (visible to all, but host may also change – we allow anyone to change their own name) -->
+      <!-- Guest name editor (works for everyone) -->
       <div class="name-edit">
         <input type="text" id="guest-name" placeholder="Your name" value="">
         <button onclick="updateGuestName()" style="box-shadow: none;">change name</button>
@@ -110,11 +110,13 @@
   let me = "";
   let currentRoom = "";
   let isHost = false;
+  let hostToken = null;                 // ← secure token
   let syncInterval = null;
   let chatPollInterval = null;
   let lastChatTimestamp = "1970-01-01 00:00:00";
 
   function getPlayer() { return document.getElementById('player'); }
+  function uuid() { return crypto.randomUUID(); } // modern browser
 
   // Block guest keyboard controls
   function blockGuestKeys(e) {
@@ -138,7 +140,6 @@
         listDiv.innerHTML = '<div style="color: #94a3b8;">✨ no active rooms</div>';
         return;
       }
-      // IMPORTANT FIX: use x.url || '' to avoid null
       listDiv.innerHTML = d.map(x => 
         `<button onclick="joinRoom('${x.name}','${x.url || ''}')">🎬 Join ${x.name}  ·  host: ${x.host}</button>`
       ).join('');
@@ -163,12 +164,21 @@
     me = user;
     currentRoom = roomName;
     isHost = true;
+    hostToken = uuid(); // generate secure token
 
+    // Register room with token
     try {
       await fetch(`${API}/sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ r: roomName, h: user, u: videoUrl, t: 0, p: 0 })
+        body: JSON.stringify({
+          r: roomName,
+          h: user,
+          token: hostToken,
+          u: videoUrl,
+          t: 0,
+          p: 0
+        })
       });
     } catch (e) {
       console.warn("Room registered locally only (server unreachable)");
@@ -178,7 +188,6 @@
   }
 
   function joinRoom(roomName, videoUrl) {
-    // Use the lobby name input if provided, otherwise generate a guest name
     const lobbyName = document.getElementById('user').value.trim();
     me = lobbyName ? lobbyName : "Guest_" + Math.floor(Math.random() * 900 + 100);
     currentRoom = roomName;
@@ -191,8 +200,6 @@
     document.getElementById('view').classList.remove('hidden');
     document.getElementById('title').innerText = '🎥 ' + roomName;
     document.getElementById('kick-message').classList.add('hidden');
-
-    // Set the guest name input to current name
     document.getElementById('guest-name').value = me;
 
     const player = getPlayer();
@@ -213,14 +220,20 @@
     if (syncInterval) clearInterval(syncInterval);
     if (chatPollInterval) clearInterval(chatPollInterval);
 
-    // Immediate first sync for host
+    // Immediate first sync for host (ensures room is alive)
     if (isHost) {
       (async () => {
         try {
           await fetch(`${API}/sync`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ r: roomName, h: me, t: player?.currentTime || 0, p: player?.paused ? 0 : 1 })
+            body: JSON.stringify({
+              r: roomName,
+              h: me,
+              token: hostToken,
+              t: player?.currentTime || 0,
+              p: player?.paused ? 0 : 1
+            })
           });
         } catch (e) {}
       })();
@@ -228,19 +241,27 @@
 
     syncInterval = setInterval(async () => {
       const p = getPlayer();
-      if (!p) return;
+      if (!p || !currentRoom) return;
 
       if (isHost) {
+        // Host: send sync with token
         try {
           await fetch(`${API}/sync`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ r: roomName, h: me, t: p.currentTime || 0, p: p.paused ? 0 : 1 })
+            body: JSON.stringify({
+              r: currentRoom,
+              h: me,
+              token: hostToken,
+              t: p.currentTime || 0,
+              p: p.paused ? 0 : 1
+            })
           });
         } catch (e) {}
       } else {
+        // Guest: get state, kick if 404
         try {
-          const res = await fetch(`${API}/get?r=${roomName}`);
+          const res = await fetch(`${API}/get?r=${currentRoom}`);
           if (res.status === 404) {
             showKickMessageAndLeave();
             return;
@@ -290,7 +311,6 @@
     const newName = document.getElementById('guest-name').value.trim();
     if (newName && newName !== me) {
       me = newName;
-      // Optionally show a small confirmation (could be a toast)
     }
   }
 
@@ -319,19 +339,17 @@
     }
   }
 
-  async function leaveRoom() {
-    if (isHost && currentRoom) {
-      try {
-        await fetch(`${API}/leave`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ room: currentRoom, host: me })
-        });
-      } catch (e) {
-        console.warn('Failed to delete room on leave', e);
-      }
+  // Leave room (manual)
+  function leaveRoom() {
+    // If host, use sendBeacon to delete room even if page unloads
+    if (isHost && currentRoom && hostToken) {
+      navigator.sendBeacon(
+        `${API}/leave`,
+        JSON.stringify({ room: currentRoom, token: hostToken })
+      );
     }
 
+    // Clean up UI
     if (syncInterval) clearInterval(syncInterval);
     if (chatPollInterval) clearInterval(chatPollInterval);
     window.removeEventListener('keydown', blockGuestKeys);
@@ -344,13 +362,24 @@
     document.getElementById('chat').innerHTML = '';
     document.getElementById('kick-message').classList.add('hidden');
 
-    me = '';
     currentRoom = '';
     isHost = false;
+    hostToken = null;
 
     loadRooms();
   }
 
+  // Tab close / refresh handler
+  window.addEventListener('beforeunload', () => {
+    if (isHost && currentRoom && hostToken) {
+      navigator.sendBeacon(
+        `${API}/leave`,
+        JSON.stringify({ room: currentRoom, token: hostToken })
+      );
+    }
+  });
+
+  // Expose functions
   window.createRoom = createRoom;
   window.joinRoom = joinRoom;
   window.leaveRoom = leaveRoom;
